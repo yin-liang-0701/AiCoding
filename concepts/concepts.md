@@ -48,3 +48,11 @@ Tool的统一接入规范
 ## Harness Engineering
 [harness 详细说明](Harness-Engineering.md)
 
+## RAG
+Retrieval-Augmented Generation  检索增强生成
+- 先从资料库里**检索**相关内容
+- 再基于这些内容来**生成**答案
+
+
+[详细说明](RAG.md)
+
