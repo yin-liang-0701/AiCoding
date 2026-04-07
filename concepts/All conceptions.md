@@ -1,4 +1,4 @@
-<img width="374" height="128" alt="image" src="https://github.com/user-attachments/assets/cb61e0fb-bb7b-41ae-981b-689192467646" /># 概念总集合
+# 概念总集合
 
 ## AI 重心迁移史
 - Prompt Engineering
