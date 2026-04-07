@@ -1,5 +1,10 @@
 # 概念总集合
 
+## AI 重心迁移史
+- Prompt Engineering 模型有没有听懂你在说什么
+- Context Engineering 模型有没有拿到足够且正确的信息
+- Harness Engineering 模型在真实执行里能不能持续做对
+
 ## Transformer
 是当前AI使用的架构，本质上是**编码器-翻译-解码器**。
 
