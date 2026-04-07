@@ -6,9 +6,9 @@ some details about AI coding when I learn it
 
 ## 项目结构
 ```text
-aicoding/
+AI-coding-learning-route/
 ├── README.md
 ├── CONTRIBUTING.md
 └── concepts/
-    ├── tools.md
+    ├── All conceptions.md
 ```
