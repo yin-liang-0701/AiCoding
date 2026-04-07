@@ -34,7 +34,9 @@
 实际上调用Tool要经过平台的转发，而不是大模型直接调用。
 
 ## MCP
-Tool的统一接入规范
+模型上下文协议 - Model Context Protocol  
+Tool的统一接入规范  
+[MCP 详细说明](MCP.md)
 
 ## Agent
 能够自主规划、自主调用工具，直到完成用户任务的系统  
