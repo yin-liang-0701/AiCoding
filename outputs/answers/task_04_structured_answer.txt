@@ -1,0 +1,89 @@
+要增加导出 memo 为 JSON 的功能，最可能涉及以下 3 个文件：
+
+### 1. **usecase.py**（业务逻辑层）
+**分工**：新增 `ExportMemoToJsonUseCase` 类，负责获取备忘录数据并准备 JSON 序列化所需的结构。
+
+**修改方案**：
+```python
+# 在 usecase.py 末尾添加
+class ExportMemoToJsonUseCase:
+    """导出备忘录为 JSON 格式"""
+
+    def __init__(self, memo_repo: MemoRepository):
+        self.memo_repo = memo_repo
+
+    def execute(self, user_id: int | None = None) -> list[dict]:
+        """获取备忘录列表并转换为字典格式（不包含标签）"""
+        memos = self.memo_repo.find_all(user_id=user_id)
+        return [
+            {
+                "id": memo.id,
+                "content": memo.content,
+                "created_at": memo.created_at.isoformat(),
+                "updated_at": memo.updated_at.isoformat(),
+                "user_id": memo.user_id,
+            }
+            for memo in memos
+        ]
+```
+
+### 2. **view.py**（显示层）
+**分工**：新增 `show_exported_json` 函数，负责将字典列表序列化为 JSON 字符串并输出。
+
+**修改方案**：
+```python
+# 在 view.py 开头添加导入
+import json
+
+# 在 view.py 末尾添加
+def show_exported_json(data: list[dict]) -> None:
+    """以 JSON 格式输出数据"""
+    print(json.dumps(data, ensure_ascii=False, indent=2))
+```
+
+### 3. **controller.py**（控制层）
+**分工**：新增 `handle_export_json` 函数，处理 `export` 命令并协调 UseCase 与 View。
+
+**修改方案**：
+```python
+# 在 controller.py 的 imports 部分添加
+import json
+from usecase import ExportMemoToJsonUseCase
+
+# 在 controller.py 的 handle_* 函数区域添加
+def handle_export_json() -> None:
+    """处理导出 JSON 命令"""
+    user_id = get_current_user_id()
+    if user_id is None:
+        view.show_login_required()
+        return
+
+    export_usecase = ExportMemoToJsonUseCase(memo_repository)
+    data = export_usecase.execute(user_id=user_id)
+    view.show_exported_json(data)
+
+# 在 main() 函数的命令判断部分添加（通常在 if/elif 链中）
+elif command == "export":
+    handle_export_json()
+```
+
+### 调用链说明
+```
+用户输入 "memo export" 命令
+    ↓
+controller.main() 路由到 handle_export_json()
+    ↓
+handle_export_json() 调用 ExportMemoToJsonUseCase.execute()
+    ↓
+ExportMemoToJsonUseCase 调用 memo_repository.find_all()
+    ↓
+Repository 返回 Memo 实体列表
+    ↓
+UseCase 将实体转换为字典列表
+    ↓
+handle_export_json() 调用 view.show_exported_json()
+    ↓
+View 使用 json.dumps() 序列化并打印输出
+```
+
+**注意**：此方案假设 JSON 导出不需要包含标签信息。如需包含标签，可在 UseCase 中注入 `TagRepository` 并查询关联数据。

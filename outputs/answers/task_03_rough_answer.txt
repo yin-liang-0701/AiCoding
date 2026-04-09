@@ -1,0 +1,143 @@
+根据代码仓库的分层架构，搜索 tag 功能的调用链路如下：
+
+## 1. 涉及的核心文件
+
+**controller.py → usecase.py → repository.py → entity.py → view.py**
+
+## 2. 各层职责与实现分析
+
+### 控制层 (controller.py)
+```python
+# 入口函数：handle_search
+def handle_search(repo, args):
+    # 1. 获取当前用户ID（权限校验）
+    user_id = get_current_user_id(repo)
+    if not user_id:
+        return view.show_login_required()
+    
+    # 2. 调用用例层执行搜索
+    usecase = SearchByTagUseCase(repo, user_id)
+    result = usecase.execute(args.tag)
+    
+    # 3. 返回视图层渲染
+    return view.show_search_results(result)
+```
+
+### 用例层 (usecase.py)
+```python
+class SearchByTagUseCase:
+    def __init__(self, repo, user_id):
+        self.memo_repo = repo.memo_repo
+        self.user_id = user_id
+    
+    def execute(self, tag_name):
+        # 1. 权限校验（用户只能搜索自己的备忘录）
+        # 2. 调用仓储层按标签查询
+        memos = self.memo_repo.find_by_tag(self.user_id, tag_name)
+        
+        # 3. 业务逻辑处理（如结果过滤、排序等）
+        if not memos:
+            raise ValueError(f"Tag '{tag_name}' not found")
+        
+        return memos
+```
+
+### 仓储层 (repository.py)
+```python
+class SqliteMemoRepository:
+    def find_by_tag(self, user_id, tag_name):
+        # 1. 执行SQL查询（带JOIN标签表）
+        query = """
+        SELECT m.* FROM memos m
+        JOIN memo_tags mt ON m.id = mt.memo_id
+        JOIN tags t ON mt.tag_id = t.id
+        WHERE m.user_id = ? AND t.name = ?
+        """
+        # 2. 将结果集转换为实体对象
+        rows = self._get_conn().execute(query, (user_id, tag_name)).fetchall()
+        return [self._row_to_memo(row) for row in rows]
+```
+
+### 实体层 (entity.py)
+```python
+class Tag:
+    def __init__(self, name: str):
+        self.name = name
+
+class Memo:
+    def __init__(self, content: str, user_id: int):
+        self.content = content
+        self.user_id = user_id
+        self.tags = []  # Tag对象列表
+    
+    def add_tag(self, tag: Tag):
+        if tag not in self.tags:
+            self.tags.append(tag)
+```
+
+### 显示层 (view.py)
+```python
+def show_search_results(memos):
+    if not memos:
+        return show_not_found()
+    
+    # 格式化输出搜索结果
+    result = f"Found {len(memos)} memo(s):\n"
+    for memo in memos:
+        result += f"- {memo.content[:50]}... [tags: {', '.join(t.name for t in memo.tags)}]\n"
+    
+    return result
+```
+
+## 3. 修改建议
+
+### 性能优化
+在 `repository.py` 中增加缓存：
+```python
+from functools import lru_cache
+
+@lru_cache(maxsize=128)
+def find_by_tag(self, user_id, tag_name):
+    # ...原有查询逻辑
+```
+
+### 功能增强
+在 `usecase.py` 中支持模糊搜索：
+```python
+def execute(self, tag_name, fuzzy=False):
+    if fuzzy:
+        memos = self.memo_repo.find_by_tag_like(self.user_id, f"%{tag_name}%")
+    else:
+        memos = self.memo_repo.find_by_tag(self.user_id, tag_name)
+    return memos
+```
+
+### 错误处理
+在 `controller.py` 中增加异常捕获：
+```python
+def handle_search(repo, args):
+    try:
+        # ...原有逻辑
+    except ValueError as e:
+        return view.show_tag_not_found(args.tag)
+    except Exception as e:
+        return view.show_error(str(e))
+```
+
+## 4. 完整调用链路总结
+
+```
+用户输入: /memo search --tag=python
+    ↓
+controller.handle_search()  # 解析命令，权限校验
+    ↓
+usecase.SearchByTagUseCase.execute()  # 执行业务规则
+    ↓
+repository.SqliteMemoRepository.find_by_tag()  # 数据库查询
+    ↓
+entity.Memo + entity.Tag  # 领域对象操作
+    ↓
+view.show_search_results()  # 格式化输出
+    ↓
+用户看到: "Found 3 memo(s): ..."
+```

@@ -1,0 +1,86 @@
+由于您没有提供具体的项目代码库，我无法给出精确的文件路径。不过，我可以基于**典型的 CLI 工具项目结构**（如使用 Cobra 的 Go 项目）提供一个通用分析框架。请根据您的实际项目结构调整：
+
+---
+
+### 1. 需要修改/查看的核心文件
+
+#### **A. 命令定义文件**（最可能）
+- **路径示例**: `cmd/list.go` 或 `cmd/list/` 目录
+- **理由**: `list` 命令的参数解析和 flag 定义通常在此处
+- **修改内容**: 添加 `--tag` 或 `-t` flag
+
+#### **B. 业务逻辑处理文件**
+- **路径示例**: `pkg/cmd/list/list.go` 或 `internal/list/list.go`
+- **理由**: 实际的列表检索和过滤逻辑在此实现
+- **修改内容**: 在过滤逻辑中添加 tag 条件判断
+
+#### **C. 数据模型/存储层文件**（可选）
+- **路径示例**: `pkg/store/store.go` 或 `pkg/db/query.go`
+- **理由**: 如果过滤需要底层数据查询优化
+
+---
+
+### 2. 修改建议（基于 Cobra 的 Go CLI 示例）
+
+#### **文件 A: `cmd/list.go`**
+```go
+// 在 listCmd 定义中添加 flag
+var listCmd = &cobra.Command{
+    Use:   "list",
+    Short: "List resources",
+    Run: func(cmd *cobra.Command, args []string) {
+        tagFilter, _ := cmd.Flags().GetString("tag")
+        // 传递 tagFilter 给业务逻辑
+    },
+}
+
+func init() {
+    // 添加 --tag 或 -t flag
+    listCmd.Flags().StringP("tag", "t", "", "Filter by tag")
+    rootCmd.AddCommand(listCmd)
+}
+```
+
+#### **文件 B: `pkg/cmd/list/list.go`**
+```go
+// 在业务逻辑中添加过滤
+func ListResources(tagFilter string) ([]Resource, error) {
+    resources, err := store.GetAll()
+    if err != nil {
+        return nil, err
+    }
+    
+    if tagFilter != "" {
+        filtered := make([]Resource, 0)
+        for _, r := range resources {
+            // 假设 Resource 有 Tags 字段 []string
+            for _, tag := range r.Tags {
+                if tag == tagFilter {
+                    filtered = append(filtered, r)
+                    break
+                }
+            }
+        }
+        return filtered, nil
+    }
+    
+    return resources, nil
+}
+```
+
+---
+
+### 3. 验证步骤
+1. 运行 `your-cli list --tag=production` 测试过滤
+2. 检查无 tag flag 时是否返回全部结果
+3. 验证不存在的 tag 是否返回空列表
+
+---
+
+### 4. 需要您确认的信息
+- **项目语言**: Go/Python/JavaScript 等？
+- **CLI 框架**: Cobra/Click/PyPI 等？
+- **当前 list 命令位置**: 请提供 `list` 命令的实现文件路径
+- **Tag 数据结构**: Tag 是字符串数组还是单个字符串？
+
+提供这些信息后，我可以给出更精确的代码补丁。

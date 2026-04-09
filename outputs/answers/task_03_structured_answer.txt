@@ -1,0 +1,73 @@
+搜索 tag 的功能涉及以下分层架构，从入口到数据源依次为：
+
+## 1. 涉及的核心文件
+
+**Controller层**：`controller.py::handle_search`  
+**UseCase层**：`usecase.py::SearchByTagUseCase`  
+**Repository层**：`repository.py::SqliteMemoRepository::find_by_tag`  
+**Entity层**：`entity.py::Tag`  
+**View层**：`view.py::show_search_results`
+
+## 2. 各层分工
+
+- **Controller层**：接收用户输入的搜索命令和参数，调用用例，并将结果传递给视图
+- **UseCase层**：执行业务逻辑（如权限校验），调用仓储进行数据查询
+- **Repository层**：负责数据库查询，通过SQL语句实现按标签搜索备忘录
+- **Entity层**：作为纯粹的数据结构，承载返回的Tag和Memo对象
+- **View层**：将搜索结果格式化为用户可读的输出
+
+## 3. 调用链详解
+
+```
+用户输入 "search <tag_name>"
+    ↓
+controller.py::handle_search(tag_name)
+    ↓ 调用
+usecase.py::SearchByTagUseCase.execute(tag_name, user_id)
+    ↓ 调用
+repository.py::SqliteMemoRepository.find_by_tag(tag_name, user_id)
+    ↓ 执行SQL查询（带JOIN操作）
+数据库返回结果集
+    ↓ 转换为
+Entity对象（Memo + Tag）
+    ↓ 返回
+UseCase层（列表[Memo]）
+    ↓ 传递
+Controller层
+    ↓ 调用
+view.py::show_search_results(memos, tag_name)
+    ↓ 输出
+格式化后的搜索结果到终端
+```
+
+## 4. 关键代码片段
+
+**Repository层**（核心查询逻辑）：
+```python
+# repository.py
+def find_by_tag(self, tag_name: str, user_id: int | None = None) -> list[Memo]:
+    """通过标签名搜索备忘录"""
+    # 构建带JOIN的SQL查询，支持按用户ID过滤
+```
+
+**UseCase层**（业务封装）：
+```python
+# usecase.py
+class SearchByTagUseCase:
+    def __init__(self, memo_repo: MemoRepository):
+        self.memo_repo = memo_repo
+
+    def execute(self, tag_name: str, user_id: int | None = None) -> list[Memo]:
+        return self.memo_repo.find_by_tag(tag_name, user_id)
+```
+
+**Controller层**（入口）：
+```python
+# controller.py
+def handle_search(tag_name: str):
+    user_id = get_current_user_id()
+    memos = SearchByTagUseCase(memo_repository).execute(tag_name, user_id)
+    view.show_search_results(memos, tag_name)
+```
+
+这种分层设计遵循了**依赖倒置原则**：高层模块（UseCase）不依赖低层模块（Repository），而是通过抽象接口交互，便于替换实现（如从SQLite切换到PostgreSQL）。

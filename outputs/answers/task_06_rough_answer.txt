@@ -1,0 +1,150 @@
+## 1. 最可能涉及的文件
+
+根据代码仓库结构和 `whoami` 命令的职责链，**优先检查顺序**应为：
+
+1. **controller.py** - 直接处理 `whoami` 命令的入口
+2. **session.py** - 会话状态管理，决定当前登录用户
+3. **repository.py** - 数据访问层，查询会话和用户数据
+4. **view.py** - 显示层，格式化输出当前用户信息
+5. **usecase.py** - 业务逻辑层（如果存在相关用例）
+
+---
+
+## 2. 各文件职责分析
+
+| 文件 | 在 `whoami` 流程中的职责 | 关键函数/类 |
+|------|------------------------|-------------|
+| **controller.py** | 命令路由和协调，调用 session 和 repository 获取当前用户ID，传递给 view 显示 | `handle_whoami`, `get_current_user_id` |
+| **session.py** | 管理登录会话，从持久化存储（如文件）加载当前 token | `load_session` |
+| **repository.py** | 从 SQLite 查询 token 对应的会话记录和关联的用户信息 | `SessionRepository.find_by_token()`, `UserRepository.find_by_id()` |
+| **view.py** | 将用户信息格式化为命令行输出 | `show_current_user` |
+| **usecase.py** | （可能）封装获取当前用户的业务逻辑，如权限校验 | 可能包含 `GetCurrentUserUseCase` |
+
+---
+
+## 3. 调试分析路径
+
+### 异常场景分类检查：
+
+**A. 无输出/空用户**
+```bash
+# 检查顺序
+1. controller.py → handle_whoami() 是否调用了 get_current_user_id()
+2. session.py → load_session() 是否返回有效 token
+3. repository.py → SessionRepository.find_by_token(token) 是否找到会话
+4. repository.py → UserRepository.find_by_id(user_id) 是否找到用户
+```
+
+**B. 报错/异常**
+```bash
+# 检查顺序
+1. controller.py → 是否有 try/except 捕获并调用 show_error()
+2. view.py → show_current_user() 是否接收了正确的数据结构
+3. repository.py → 数据库连接是否正常，表结构是否初始化
+```
+
+**C. 权限异常**
+```bash
+# 检查顺序
+1. controller.py → 是否校验了登录状态（@login_required 装饰器？）
+2. session.py → token 是否过期或被清除
+```
+
+---
+
+## 4. 代码修改建议
+
+### 典型 `whoami` 流程实现示例：
+
+**controller.py** - 确保完整的错误处理链
+```python
+def handle_whoami():
+    """处理 whoami 命令"""
+    try:
+        # 1. 从会话加载 token
+        token = load_session()
+        if not token:
+            show_login_required()
+            return
+            
+        # 2. 查询会话记录
+        session_repo = SqliteSessionRepository()
+        session = session_repo.find_by_token(token)
+        if not session:
+            show_error("会话已过期，请重新登录")
+            return
+            
+        # 3. 查询用户信息
+        user_repo = SqliteUserRepository()
+        user = user_repo.find_by_id(session.user_id)
+        if not user:
+            show_error("用户不存在")
+            return
+            
+        # 4. 显示结果
+        show_current_user(user)
+        
+    except Exception as e:
+        show_error(f"获取当前用户失败: {str(e)}")
+```
+
+**session.py** - 增强健壮性
+```python
+def load_session():
+    """从文件加载会话 token，增加异常处理"""
+    try:
+        with open(SESSION_FILE, 'r') as f:
+            return f.read().strip()
+    except FileNotFoundError:
+        return None
+    except Exception as e:
+        print(f"会话加载失败: {e}")
+        return None
+```
+
+**view.py** - 防御式显示
+```python
+def show_current_user(user):
+    """显示当前用户，增加空值保护"""
+    if user and hasattr(user, 'username'):
+        print(f"当前用户: {user.username}")
+    else:
+        print("错误: 无效的用户数据")
+```
+
+### 快速诊断脚本
+
+在项目根目录创建 `debug_whoami.py`：
+```python
+#!/usr/bin/env python3
+"""诊断 whoami 问题的调试脚本"""
+
+from session import load_session
+from repository import SqliteSessionRepository, SqliteUserRepository
+
+def debug_whoami():
+    print("=== whoami 诊断开始 ===")
+    
+    # 1. 检查会话
+    token = load_session()
+    print(f"1. 会话 token: {token or '未找到'}")
+    
+    if token:
+        # 2. 检查会话记录
+        session_repo = SqliteSessionRepository()
+        session = session_repo.find_by_token(token)
+        print(f"2. 会话记录: {session or '未找到'}")
+        
+        if session:
+            # 3. 检查用户
+            user_repo = SqliteUserRepository()
+            user = user_repo.find_by_id(session.user_id)
+            print(f"3. 用户信息: {user.__dict__ if user else '未找到'}")
+    
+    print("=== 诊断结束 ===")
+
+if __name__ == "__main__":
+    debug_whoami()
+```
+
+运行 `python debug_whoami.py` 可快速定位问题层级。

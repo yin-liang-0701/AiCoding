@@ -1,0 +1,114 @@
+### 1. 最可能涉及的文件
+根据功能需求和仓库结构，以下文件需要修改：
+- **usecase.py**：新增导出用例
+- **controller.py**：添加导出命令处理
+- **view.py**：实现JSON输出格式
+- **repository.py**：可能需要扩展查询方法（视现有实现而定）
+
+### 2. 文件职责说明
+| 文件 | 职责 | 本功能中的作用 |
+|------|------|----------------|
+| **usecase.py** | 业务逻辑/用例层 | 新增`ExportMemoAsJsonUseCase`处理导出逻辑 |
+| **controller.py** | 控制层/命令路由 | 添加`handle_export_json`命令处理器 |
+| **view.py** | 显示层/输出格式化 | 实现`show_exported_json`JSON输出方法 |
+| **repository.py** | 数据持久化层 | 可能需要添加按用户查询Memo的方法（如果现有`find_all`不支持） |
+
+### 3. 修改建议与分析
+
+#### ✅ usecase.py
+```python
+# 新增用例类（在文件末尾添加）
+class ExportMemoAsJsonUseCase:
+    def __init__(self, user_id):
+        self.user_id = user_id
+        
+    def execute(self):
+        # 获取当前用户的Memo列表（复用ListMemosUseCase逻辑）
+        memo_repo = SqliteMemoRepository()
+        memos = memo_repo.find_all_by_user(self.user_id)  # 需要repository支持
+        
+        # 转换为字典结构（实体层保持纯净，转换放在用例层）
+        return [{
+            "id": memo.id,
+            "content": memo.content,
+            "created_at": memo.created_at.isoformat(),
+            "tags": [tag.name for tag in memo.tags]
+        } for memo in memos]
+```
+
+#### ✅ controller.py
+```python
+# 新增命令处理器（在函数列表末尾添加）
+def handle_export_json():
+    user_id = get_current_user_id()
+    if not user_id:
+        view.show_login_required()
+        return
+        
+    export_usecase = ExportMemoAsJsonUseCase(user_id)
+    memo_data = export_usecase.execute()
+    view.show_exported_json(memo_data)
+
+# 在main()函数中添加命令路由（在if-elif链中添加）
+elif command == "export-json":
+    handle_export_json()
+```
+
+#### ✅ view.py
+```python
+# 新增JSON输出方法（在文件末尾添加）
+import json  # 在文件顶部添加导入
+
+def show_exported_json(memo_data):
+    """输出JSON格式的Memo数据"""
+    print(json.dumps(memo_data, ensure_ascii=False, indent=2))
+```
+
+#### ⚠️ repository.py（可能需要）
+```python
+# 如果现有find_all不支持用户过滤，在SqliteMemoRepository中添加：
+def find_all_by_user(self, user_id):
+    conn = self._get_conn()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM memos WHERE user_id = ?", (user_id,))
+    rows = cursor.fetchall()
+    return [self._row_to_memo(row) for row in rows]
+```
+
+### 4. 关键实现细节
+1. **权限控制**：在controller层验证用户登录状态（复用现有`get_current_user_id`）
+2. **数据转换**：
+   - 在usecase层将实体转换为字典（避免污染实体层）
+   - 时间格式使用ISO标准（`isoformat()`）
+3. **JSON输出**：
+   - 使用`ensure_ascii=False`支持中文
+   - `indent=2`美化输出
+4. **复用现有逻辑**：
+   - 复用`ListMemosUseCase`的查询逻辑
+   - 复用`_row_to_memo`等数据转换方法
+
+### 5. 调用流程
+```mermaid
+sequenceDiagram
+    participant C as Controller
+    participant U as ExportMemoAsJsonUseCase
+    participant R as MemoRepository
+    participant V as View
+    
+    C->>U: execute(user_id)
+    U->>R: find_all_by_user(user_id)
+    R-->>U: [Memo实体列表]
+    U->>U: 转换为字典结构
+    U-->>C: JSON数据
+    C->>V: show_exported_json(data)
+    V->>V: json.dumps()
+    V-->>User: 打印JSON
+```
+
+### 6. 测试建议
+1. 验证未登录时返回错误提示
+2. 验证JSON格式有效性（无中文乱码）
+3. 验证包含标签的Memo导出完整性
+4. 验证空Memo列表的导出结果（应为`[]`）
+
+> 提示：如果现有`ListMemosUseCase`已包含用户过滤逻辑，可复用其查询方法，避免在repository层重复实现。

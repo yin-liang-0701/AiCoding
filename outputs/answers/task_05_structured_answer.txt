@@ -1,0 +1,79 @@
+## 最可能涉及的文件
+
+1. **controller.py**（主要修改点）
+2. **usecase.py**（需确认接口兼容性）
+3. **repository.py**（需确认查询实现）
+
+## 文件分工与调用链
+
+```
+controller.py（命令入口） 
+  → usecase.py（业务逻辑） 
+    → repository.py（数据查询） 
+      → entity.py（领域对象）
+view.py（结果展示） <-- controller.py
+```
+
+- **controller.py**：解析 `list` 命令参数，决定调用哪个用例
+- **usecase.py**：`ListMemosUseCase` 列出全部，`SearchByTagUseCase` 按标签过滤
+- **repository.py**：`SqliteMemoRepository.find_by_tag()` 提供底层查询支持
+- **view.py**：`show_memos()` 复用现有展示逻辑
+
+## 修改方案
+
+### 1. controller.py 修改
+
+```python
+# 修改 handle_list 函数签名，增加可选 tag 参数
+def handle_list(tag: str | None = None) -> None:
+    """列出备忘录（支持按标签过滤）"""
+    user_id = get_current_user_id()
+    if user_id is None:
+        show_login_required()
+        return
+
+    if tag:
+        # 按标签搜索
+        usecase = SearchByTagUseCase(memo_repository, tag_repository)
+        memos = usecase.execute(tag, user_id)
+    else:
+        # 列出全部
+        usecase = ListMemosUseCase(memo_repository)
+        memos = usecase.execute(user_id)
+    
+    show_memos(memos)
+
+# 修改命令解析逻辑（通常在 main() 函数中）
+# 将 "list" 和 "list <tag>" 都路由到 handle_list
+elif cmd == "list":
+    # 支持可选参数：list [tag]
+    tag = parts[1] if len(parts) > 1 else None
+    handle_list(tag)
+```
+
+### 2. usecase.py 确认
+
+确保 `SearchByTagUseCase.execute()` 签名匹配：
+```python
+def execute(self, tag_name: str, user_id: int) -> list[Memo]:
+    return self.memo_repo.find_by_tag(tag_name, user_id)
+```
+
+### 3. repository.py 确认
+
+`SqliteMemoRepository.find_by_tag()` 已实现带用户隔离的查询：
+```python
+def find_by_tag(self, tag_name: str, user_id: int | None = None) -> list[Memo]:
+    # 已通过 JOIN 实现多对多关系查询
+    # 并自动过滤对应用户的备忘录
+```
+
+## 不确定的部分
+
+- **命令解析细节**：`main()` 函数的具体实现未在片段中完整展示，需确认参数解析方式
+- **标签不存在处理**：`SearchByTagUseCase` 在标签不存在时应返回空列表还是报错，需查看完整实现
+- **错误提示**：是否需要添加 `show_empty_tag()` 等提示（当前 `show_memos()` 对空列表已有处理）
+
+## 总结
+
+核心修改集中在 **controller.py**，需调整 `handle_list()` 函数签名和命令路由逻辑。**usecase.py** 和 **repository.py** 已有基础设施可直接复用，无需修改。

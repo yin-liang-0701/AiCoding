@@ -1,0 +1,199 @@
+## 1. 应该修改或查看的文件
+
+### 业务逻辑
+- **服务层文件**：`app/services/`, `app/business_logic/`, `app/use_cases/` 目录下的文件
+- **领域模型**：`app/models/domain/`（应只包含充血模型，不包含应用逻辑）
+- **避免**：`app/controllers/`, `app/api/`, `routes.py` 等接口层文件
+
+### 权限控制
+- **中间件/拦截器**：`app/middleware/auth.py`, `app/filters/permission_filter.py`
+- **装饰器/注解**：`app/decorators/require_role.py`, `app/security/guards.py`
+- **策略文件**：`app/policies/`, `app/authorization/`
+- **避免**：在服务层或控制器中硬编码 `if user.role == 'admin':` 判断
+
+---
+
+## 2. 理由说明
+
+**业务逻辑**应独立于基础设施和传输层，因为：
+- **可测试性**：纯业务逻辑可被单元测试，无需启动Web容器
+- **可复用性**：同一业务逻辑可被HTTP API、CLI命令、定时任务等多种入口调用
+- **可维护性**：业务规则集中管理，避免散落在各处
+
+**权限控制**应作为横切关注点（Cross-cutting concern）统一处理，因为：
+- **最小权限原则**：在请求进入业务逻辑前完成鉴权，避免权限检查遗漏
+- **关注点分离**：业务代码不应关心"谁在调用"，只关心"做什么"
+- **一致性**：统一权限模型（如RBAC/ABAC）可在整个应用复用
+
+---
+
+## 3. 修改建议与代码补丁
+
+### 场景1：业务逻辑误放在控制器（FastAPI示例）
+
+**重构前**（应避免）：
+```python
+# app/api/v1/orders.py - 控制器文件
+@app.post("/orders")
+async def create_order(current_user: User = Depends(get_current_user)):
+    # ❌ 业务逻辑直接写在控制器
+    order_data = await request.json()
+    if not order_data.get("items"):
+        raise HTTPException(400, "订单项不能为空")
+    
+    total = sum(item["price"] * item["quantity"] for item in order_data["items"])
+    if total > current_user.balance:
+        raise HTTPException(400, "余额不足")
+    
+    order = Order.create(user=current_user, items=order_data["items"], total=total)
+    return {"order_id": order.id}
+```
+
+**重构后**：
+```python
+# app/services/order_service.py - 业务逻辑层
+class OrderService:
+    @staticmethod
+    def validate_order_items(items: List[Dict]) -> None:
+        if not items:
+            raise ValueError("订单项不能为空")
+    
+    @staticmethod
+    def calculate_total(items: List[Dict]) -> Decimal:
+        return sum(Decimal(str(item["price"])) * item["quantity"] for item in items)
+    
+    def create_order(self, user: User, items: List[Dict]) -> Order:
+        self.validate_order_items(items)
+        total = self.calculate_total(items)
+        
+        if total > user.balance:
+            raise InsufficientBalanceError()
+        
+        return Order.create(user=user, items=items, total=total)
+
+# app/api/v1/orders.py - 控制器保持精简
+@app.post("/orders")
+async def create_order(
+    order_data: OrderCreateSchema,
+    current_user: User = Depends(get_current_user),
+    order_service: OrderService = Depends()
+):
+    order = order_service.create_order(current_user, order_data.items)
+    return {"order_id": order.id}
+```
+
+---
+
+### 场景2：权限控制硬编码在服务层（Spring Boot示例）
+
+**重构前**（应避免）：
+```java
+// src/main/java/com/example/service/OrderService.java
+@Service
+public class OrderService {
+    @Autowired
+    private OrderRepository orderRepository;
+    
+    public Order getOrderDetail(Long orderId) {
+        // ❌ 权限检查侵入业务逻辑
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth.getAuthorities().stream().noneMatch(a -> a.getAuthority().equals("ROLE_ADMIN"))) {
+            throw new AccessDeniedException("无权访问");
+        }
+        
+        return orderRepository.findById(orderId)
+            .orElseThrow(() -> new ResourceNotFoundException("订单不存在"));
+    }
+}
+```
+
+**重构后**：
+```java
+// src/main/java/com/example/service/OrderService.java
+@Service
+public class OrderService {
+    @Autowired
+    private OrderRepository orderRepository;
+    
+    // ✅ 业务逻辑纯净，权限通过注解声明
+    @PreAuthorize("hasRole('ADMIN') or #userId == authentication.principal.id")
+    public Order getOrderDetail(Long orderId, Long userId) {
+        return orderRepository.findById(orderId)
+            .orElseThrow(() -> new ResourceNotFoundException("订单不存在"));
+    }
+}
+
+// 或更细粒度的方法级控制
+// src/main/java/com/example/security/OrderSecurity.java
+@Service
+public class OrderSecurity {
+    @PreAuthorize("hasRole('ADMIN')")
+    public boolean canViewAllOrders() {
+        return true;
+    }
+}
+```
+
+---
+
+### 场景3：权限控制提取到中间件（Express.js示例）
+
+**重构前**（应避免）：
+```javascript
+// routes/orders.js
+router.get('/orders/:id', (req, res) => {
+  // ❌ 权限检查与业务逻辑耦合
+  if (!req.user.roles.includes('admin') && req.user.id !== req.params.userId) {
+    return res.status(403).json({ error: '无权访问' });
+  }
+  
+  const order = orderService.getOrder(req.params.id);
+  res.json(order);
+});
+```
+
+**重构后**：
+```javascript
+// middleware/requirePermission.js
+const requirePermission = (action, resource) => {
+  return (req, res, next) => {
+    if (!req.user.can(action, resource)) {
+      return res.status(403).json({ error: '无权访问' });
+    }
+    next();
+  };
+};
+
+// routes/orders.js
+router.get('/orders/:id', 
+  requirePermission('read', 'order'), // ✅ 权限控制前置
+  (req, res) => {
+    const order = orderService.getOrder(req.params.id);
+    res.json(order);
+  }
+);
+
+// 或使用更灵活的守卫
+// guards/OrderGuard.js
+class OrderGuard {
+  static canRead(req) {
+    return req.user.roles.includes('admin') || 
+           req.user.id === Number(req.params.userId);
+  }
+}
+```
+
+---
+
+## 4. 关键检查清单
+
+在代码审查时，检查以下**危险信号**：
+
+| 文件类型 | ✅ 应该包含 | ❌ 不应该包含 |
+|---------|------------|--------------|
+| **控制器** | 请求解析、参数校验、响应格式化 | 业务计算、数据库操作、权限判断 |
+| **服务层** | 业务规则、事务管理、领域逻辑 | HTTP上下文、Session、具体权限检查 |
+| **中间件** | 认证、授权、日志、限流 | 业务数据处理、响应体修改 |
+| **模型** | 数据验证、关联关系、领域方法 | 业务用例、权限逻辑 |
+
+**总结**：业务逻辑应由**服务层**负责，权限控制应由**中间件/守卫层**负责。两者通过依赖注入或AOP机制协作，保持各自职责清晰。

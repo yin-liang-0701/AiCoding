@@ -1,0 +1,314 @@
+你是一个 repo-level AI coding assistant。你必须基于给定仓库上下文回答，不能凭空编造文件、函数或系统结构。
+
+项目目标：
+这是一个小型代码仓库分析实验。目标是评估：不同上下文构造方式，会如何影响模型完成仓库级代码任务的表现。
+
+当前任务：
+谁负责业务逻辑和权限控制？
+
+候选关键函数：
+- usecase.py::__init__
+- usecase.py::execute
+- usecase.py::__init__
+- usecase.py::execute
+- usecase.py::__init__
+- usecase.py::execute
+- usecase.py::__init__
+- usecase.py::execute
+- controller.py::get_current_user_id
+- controller.py::handle_register
+- controller.py::handle_login
+- controller.py::handle_add
+
+候选关键类：
+- usecase.py::RegisterUserUseCase
+- usecase.py::LoginUserUseCase
+- usecase.py::LogoutUserUseCase
+- usecase.py::AddMemoUseCase
+- usecase.py::ListMemosUseCase
+- usecase.py::EditMemoUseCase
+- usecase.py::DeleteMemoUseCase
+- usecase.py::AddTagToMemoUseCase
+- repository.py::MemoRepository
+- repository.py::TagRepository
+- repository.py::UserRepository
+- repository.py::SessionRepository
+
+检索到的核心上下文：
+[1] 文件: usecase.py
+职责提示: 业务逻辑 用例层 权限控制 memo 增删改查 tag 搜索
+摘要: 文件: usecase.py | 职责: 业务逻辑 用例层 权限控制 memo 增删改查 tag 搜索 | 函数: __init__, execute, __init__, execute, __init__, execute, __init__, execute, __init__, execute, __init__, execute, __init__, execute, __init__, execute, __init__, execute, __init__, execute, __init__, execute | 类: RegisterUserUseCase, LoginUserUseCase, LogoutUserUseCase, AddMemoUseCase, ListMemosUseCase, EditMemoUseCase, DeleteMemoUseCase, AddTagToMemoUseCase, RemoveTagFromMemoUseCase, SearchByTagUseCase, ListTagsUseCase
+函数: __init__, execute, __init__, execute, __init__, execute, __init__, execute, __init__, execute, __init__, execute, __init__, execute, __init__, execute, __init__, execute, __init__, execute, __init__, execute
+类: RegisterUserUseCase, LoginUserUseCase, LogoutUserUseCase, AddMemoUseCase, ListMemosUseCase, EditMemoUseCase, DeleteMemoUseCase, AddTagToMemoUseCase, RemoveTagFromMemoUseCase, SearchByTagUseCase, ListTagsUseCase
+相关性分数: 0.0237
+
+代码片段:
+"""
+UseCase: 业务逻辑。定义“作为一个备忘录应用能做什么”。
+不了解数据库细节（交给 Repository 处理）。不了解 UI 细节。
+
+【步骤 6 中新增的认证与授权要点】
+- RegisterUserUseCase: 用户注册（校验 + 哈希化）
+- LoginUserUseCase: 登录（密码验证 + 发放会话）
+- LogoutUserUseCase: 登出（销毁会话）
+- 在现有 UseCase 中增加 user_id：确保只能操作属于自己的备忘录（授权）
+"""
+
+import secrets
+from datetime import datetime, timedelta
+
+from auth import hash_password, verify_password
+from entity import Memo, Tag, User
+from repository import MemoRepository, SessionRepository, TagRepository, UserRepository
+
+
+# === 认证用例 (Authentication UseCases) ===
+
+
+class RegisterUserUseCase:
+    """用户注册
+
+    【教学要点：校验应该放在哪里？】
+    输入数据的校验（Validation）应在 UseCase 层进行。
+    - 实体层 (Entity)：纯粹的数据结构（不承担校验职责）。
+    - 仓库层 (Repository)：仅负责数据持久化（不了解业务规则）。
+    - 用例层 (UseCase)：检查业务规则的地方 ← 就在这里。
+    """
+
+    def __init__(self, user_repo: UserRepository):
+        self.user_repo = user_repo
+
+    def execute(self, username: str, password: str) -> User:
+        if len(username) < 3:
+            raise ValueError("用户名长度必须至少为 3 个字符")
+        if len(password) < 8:
+            raise ValueError("密码长度必须至少为 8 个字符")
+
+        password_hashed = hash_password(password)
+        user = User.create(username, password_hashed)
+        return self.user_repo.save(user)
+
+
+... (truncated)
+
+
+[2] 文件: app.py
+职责提示: 程序入口 应用启动 依赖装配
+摘要: 文件: app.py | 职责: 程序入口 应用启动 依赖装配
+函数: (none)
+类: (none)
+相关性分数: 0.0054
+
+代码片段:
+"""
+备忘录程序（步骤 2：MVC 分离）
+入口点。仅将处理任务委派给 controller（控制器）。
+"""
+
+import controller
+
+if __name__ == "__main__":
+    controller.main()
+
+
+[3] 文件: controller.py
+职责提示: 控制层 命令处理 登录 注册 whoami 权限入口
+摘要: 文件: controller.py | 职责: 控制层 命令处理 登录 注册 whoami 权限入口 | 函数: get_current_user_id, handle_register, handle_login, handle_add, handle_list, handle_edit, handle_delete, handle_tag, handle_untag, handle_search, handle_tags, handle_logout, handle_whoami, main
+函数: get_current_user_id, handle_register, handle_login, handle_add, handle_list, handle_edit, handle_delete, handle_tag, handle_untag, handle_search, handle_tags, handle_logout, handle_whoami, main
+类: (none)
+相关性分数: 0.0014
+
+代码片段:
+import getpass
+import sys
+from datetime import datetime
+
+import view
+from repository import (
+    SqliteMemoRepository,
+    SqliteSessionRepository,
+    SqliteTagRepository,
+    SqliteUserRepository,
+)
+from session import clear_session, load_session, save_session
+from usecase import (
+    AddMemoUseCase,
+    AddTagToMemoUseCase,
+    DeleteMemoUseCase,
+    EditMemoUseCase,
+    ListMemosUseCase,
+    ListTagsUseCase,
+    LoginUserUseCase,
+    LogoutUserUseCase,
+    RegisterUserUseCase,
+    RemoveTagFromMemoUseCase,
+    SearchByTagUseCase,
+)
+
+# 初始化 Repository（仓库实例），并供所有 UseCase 共享
+memo_repository = SqliteMemoRepository()
+tag_repository = SqliteTagRepository(db_path=memo_repository.db_path)
+user_repository = SqliteUserRepository(db_path=memo_repository.db_path)
+session_repository = SqliteSessionRepository(db_path=memo_repository.db_path)
+
+
+# --- 认证助手函数 ---
+
+
+def get_current_user_id() -> int | None:
+    """对比会话文件与数据库，返回当前登录的用户 ID。
+    若未登录或会话过期，则返回 None。
+    """
+    session_info = load_session()
+    if session_info is None:
+        return None
+
+    user_id, token = session_info
+
+    # 在数据库端校验 Token
+    result = session_repository.find_by_token(token)
+    if result is None:
+        clear_
+... (truncated)
+
+
+[4] 文件: view.py
+职责提示: 显示层 输出格式 命令行展示
+摘要: 文件: view.py | 职责: 显示层 输出格式 命令行展示 | 函数: show_added, _format_tags, show_memos, show_edited, show_deleted, show_not_found, show_tag_added, show_tag_removed, show_tag_not_found, show_tags, show_search_results, show_help, show_unknown_command, show_error, show_registered, show_logged_in, show_logged_out, show_current_user, show_login_required
+函数: show_added, _format_tags, show_memos, show_edited, show_deleted, show_not_found, show_tag_added, show_tag_removed, show_tag_not_found, show_tags, show_search_results, show_help, show_unknown_command, show_error, show_registered, show_logged_in, show_logged_out, show_current_user, show_login_required
+类: (none)
+相关性分数: 0.0009
+
+代码片段:
+"""
+View: 仅负责界面展示。不涉及 SQL 或 数据库。
+仅接收 Memo/Tag 实体并将其 print（打印）出来。
+"""
+
+from entity import Memo, Tag
+
+
+def show_added(content: str) -> None:
+    """显示添加成功"""
+    print(f"已添加: {content}")
+
+
+def _format_tags(tags: tuple[Tag, ...]) -> str:
+    """格式化标签列表"""
+    if len(tags) == 0:
+        return ""
+    tag_names = ", ".join(f"#{t.name}" for t in tags)
+    return f" [{tag_names}]"
+
+
+def show_memos(memos: list[Memo]) -> None:
+    """显示备忘录列表（带标签）"""
+    if len(memos) == 0:
+        print("暂无备忘录。")
+        return
+
+    for memo in memos:
+        date = memo.created_at.strftime("%Y-%m-%d")
+        tags = _format_tags(memo.tags)
+        print(f"  [{memo.id}] {memo.content}{tags}  ({date})")
+
+
+def show_edited(memo_id: int, new_content: str) -> None:
+    """显示编辑成功"""
+    print(f"已更新: [{memo_id}] {new_content}")
+
+
+def show_deleted(memo_id: int) -> None:
+    """显示删除成功"""
+    print(f"已删除: ID {memo_id}")
+
+
+def show_not_found(memo_id: int) -> None:
+    """显示未找到备忘录"""
+    print(f"未找到 ID 为 {memo_id} 的备忘录。")
+
+
+def show_tag_added(memo_id: int, tag_name: str) -> None:
+    """显示标签添加成功"""
+    print(f"已添加标签: 为 ID {memo_id} 添加了 #{tag_name}")
+
+
+def show_tag_removed(memo_id: int, tag_name: str) -> None:
+    """显示
+... (truncated)
+
+
+[5] 文件: repository.py
+职责提示: 仓储层 数据持久化 SQLite 查询 用户 会话 标签
+摘要: 文件: repository.py | 职责: 仓储层 数据持久化 SQLite 查询 用户 会话 标签 | 函数: save, find_all, find_by_id, find_by_tag, update, delete, add_tag, remove_tag, save, find_by_name, find_all, find_or_create, save, find_by_username, find_by_id, save, find_by_token, delete_by_token, __init__, _init_db, _get_conn, _get_tags_for_memo, _row_to_memo, save, find_all, find_by_id, find_by_tag, update, delete, add_tag, remove_tag, __init__, _get_conn, _row_to_tag, save, find_by_name, find_all, find_or_create, __init__, _get_conn, _row_to_user, save, find_by_username, find_by_id, __init__, _get_conn, save, find_by_token, delete_by_token | 类: MemoRepository, TagRepository, UserRepository, SessionRepository, SqliteMemoRepository, SqliteTagRepository, SqliteUserRepository, SqliteSessionRepository
+函数: save, find_all, find_by_id, find_by_tag, update, delete, add_tag, remove_tag, save, find_by_name, find_all, find_or_create, save, find_by_username, find_by_id, save, find_by_token, delete_by_token, __init__, _init_db, _get_conn, _get_tags_for_memo, _row_to_memo, save, find_all, find_by_id, find_by_tag, update, delete, add_tag, remove_tag, __init__, _get_conn, _row_to_tag, save, find_by_name, find_all, find_or_create, __init__, _get_conn, _row_to_user, save, find_by_username, find_by_id, __init__, _get_conn, save, find_by_token, delete_by_token
+类: MemoRepository, TagRepository, UserRepository, SessionRepository, SqliteMemoRepository, SqliteTagRepository, SqliteUserRepository, SqliteSessionRepository
+相关性分数: 0.0003
+
+代码片段:
+"""
+Repository: 将数据的保存与获取抽象化。
+隐藏“数据保存在哪里”的具体细节。这样无论是更换为 SQLite、PostgreSQL 还是文件存储，都可以直接替换。
+
+【步骤 5 学习的数据库设计要点】
+- 规范化（Normalization）：将标签分离到独立表（多对多关系）。
+- 索引（Index）：提高搜索速度的机制。
+- JOIN（连接）：结合多个表的数据进行查询。
+
+【步骤 6 学习的认证要点】
+- users 表：保存用户信息和密码哈希。
+- sessions 表：管理登录会话。
+- user_id：记录备忘录的所有者，用于授权（访问控制）。
+- 架构版本管理（Schema Versioning）：在不破坏现有数据的情况下修改表结构的方法。
+"""
+
+import sqlite3
+from abc import ABC, abstractmethod
+from datetime import datetime
+
+from entity import Memo, Tag, User
+
+# --- 抽象存储库（接口） ---
+
+
+class MemoRepository(ABC):
+    """备忘录保存和获取的接口"""
+
+    @abstractmethod
+    def save(self, memo: Memo) -> Memo:
+        """保存备忘录并返回带有ID的Memo"""
+        pass
+
+    @abstractmethod
+    def find_all(self, user_id: int | None = None) -> list[Memo]:
+        """获取备忘录（指定user_id时只获取该用户的备忘录）"""
+        pass
+
+    @abstractmethod
+    def find_by_id(self, memo_id: int) -> Memo | None:
+        """通过ID获取备忘录。不存在则返回None"""
+        pass
+
+    @abstractmethod
+    def find_by_tag(self, tag_name: str, user_id: int | None = None) -> list[Memo]:
+        """通过标签名搜索备忘录（指定user_id时只搜索该用户的备忘录）"""
+        pass
+
+    @abstractmethod
+    def update(self, memo: Memo) -> bool:
+        """更新备忘录。成功返回True"""
+        pass
+
+    @abstractmethod
+    d
+... (truncated)
+
+
+回答要求：
+1. 先指出这个任务最可能涉及的 2~5 个文件
+2. 说明这些文件在任务中的分工
+3. 如果是 explain 类任务，解释调用链/分层关系
+4. 如果是 feature 或 bugfix 类任务，给出修改方案
+5. 若给代码，尽量保持现有命名与结构一致
+6. 如果信息不足，要明确说明“不确定的部分”
+7. 不要引用不存在的文件

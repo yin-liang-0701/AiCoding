@@ -1,0 +1,348 @@
+你是一个 repo-level AI coding assistant。你必须基于给定仓库上下文回答，不能凭空编造文件、函数或系统结构。
+
+        项目目标：
+        这是一个小型代码仓库分析实验。目标是评估：不同上下文构造方式，会如何影响模型完成仓库级代码任务的表现。
+
+        当前任务：
+        如果 whoami 返回异常，应该优先检查哪些文件？
+
+        候选关键函数：
+        - controller.py::get_current_user_id
+- controller.py::handle_register
+- controller.py::handle_login
+- controller.py::handle_add
+- controller.py::handle_list
+- controller.py::handle_edit
+- controller.py::handle_delete
+- controller.py::handle_tag
+- view.py::show_added
+- view.py::_format_tags
+- view.py::show_memos
+- view.py::show_edited
+
+        候选关键类：
+        - repository.py::MemoRepository
+- repository.py::TagRepository
+- repository.py::UserRepository
+- repository.py::SessionRepository
+- repository.py::SqliteMemoRepository
+- repository.py::SqliteTagRepository
+- repository.py::SqliteUserRepository
+- repository.py::SqliteSessionRepository
+
+        检索到的核心上下文：
+        [1] 文件: controller.py
+            职责提示: 控制层 命令处理 登录 注册 whoami 权限入口
+            摘要: 文件: controller.py | 职责: 控制层 命令处理 登录 注册 whoami 权限入口 | 函数: get_current_user_id, handle_register, handle_login, handle_add, handle_list, handle_edit, handle_delete, handle_tag, handle_untag, handle_search, handle_tags, handle_logout, handle_whoami, main
+            函数: get_current_user_id, handle_register, handle_login, handle_add, handle_list, handle_edit, handle_delete, handle_tag, handle_untag, handle_search, handle_tags, handle_logout, handle_whoami, main
+            类: (none)
+            相关性分数: 0.0537
+
+            代码片段:
+            import getpass
+import sys
+from datetime import datetime
+
+import view
+from repository import (
+    SqliteMemoRepository,
+    SqliteSessionRepository,
+    SqliteTagRepository,
+    SqliteUserRepository,
+)
+from session import clear_session, load_session, save_session
+from usecase import (
+    AddMemoUseCase,
+    AddTagToMemoUseCase,
+    DeleteMemoUseCase,
+    EditMemoUseCase,
+    ListMemosUseCase,
+    ListTagsUseCase,
+    LoginUserUseCase,
+    LogoutUserUseCase,
+    RegisterUserUseCase,
+    RemoveTagFromMemoUseCase,
+    SearchByTagUseCase,
+)
+
+# 初始化 Repository（仓库实例），并供所有 UseCase 共享
+memo_repository = SqliteMemoRepository()
+tag_repository = SqliteTagRepository(db_path=memo_repository.db_path)
+user_repository = SqliteUserRepository(db_path=memo_repository.db_path)
+session_repository = SqliteSessionRepository(db_path=memo_repository.db_path)
+
+
+# --- 认证助手函数 ---
+
+
+def get_current_user_id() -> int | None:
+    """对比会话文件与数据库，返回当前登录的用户 ID。
+    若未登录或会话过期，则返回 None。
+    """
+    session_info = load_session()
+    if session_info is None:
+        return None
+
+    user_id, token = session_info
+
+    # 在数据库端校验 Token
+    result = session_repository.find_by_token(token)
+    if result is None:
+        clear_
+... (truncated)
+            
+
+[2] 文件: view.py
+            职责提示: 显示层 输出格式 命令行展示
+            摘要: 文件: view.py | 职责: 显示层 输出格式 命令行展示 | 函数: show_added, _format_tags, show_memos, show_edited, show_deleted, show_not_found, show_tag_added, show_tag_removed, show_tag_not_found, show_tags, show_search_results, show_help, show_unknown_command, show_error, show_registered, show_logged_in, show_logged_out, show_current_user, show_login_required
+            函数: show_added, _format_tags, show_memos, show_edited, show_deleted, show_not_found, show_tag_added, show_tag_removed, show_tag_not_found, show_tags, show_search_results, show_help, show_unknown_command, show_error, show_registered, show_logged_in, show_logged_out, show_current_user, show_login_required
+            类: (none)
+            相关性分数: 0.0350
+
+            代码片段:
+            """
+View: 仅负责界面展示。不涉及 SQL 或 数据库。
+仅接收 Memo/Tag 实体并将其 print（打印）出来。
+"""
+
+from entity import Memo, Tag
+
+
+def show_added(content: str) -> None:
+    """显示添加成功"""
+    print(f"已添加: {content}")
+
+
+def _format_tags(tags: tuple[Tag, ...]) -> str:
+    """格式化标签列表"""
+    if len(tags) == 0:
+        return ""
+    tag_names = ", ".join(f"#{t.name}" for t in tags)
+    return f" [{tag_names}]"
+
+
+def show_memos(memos: list[Memo]) -> None:
+    """显示备忘录列表（带标签）"""
+    if len(memos) == 0:
+        print("暂无备忘录。")
+        return
+
+    for memo in memos:
+        date = memo.created_at.strftime("%Y-%m-%d")
+        tags = _format_tags(memo.tags)
+        print(f"  [{memo.id}] {memo.content}{tags}  ({date})")
+
+
+def show_edited(memo_id: int, new_content: str) -> None:
+    """显示编辑成功"""
+    print(f"已更新: [{memo_id}] {new_content}")
+
+
+def show_deleted(memo_id: int) -> None:
+    """显示删除成功"""
+    print(f"已删除: ID {memo_id}")
+
+
+def show_not_found(memo_id: int) -> None:
+    """显示未找到备忘录"""
+    print(f"未找到 ID 为 {memo_id} 的备忘录。")
+
+
+def show_tag_added(memo_id: int, tag_name: str) -> None:
+    """显示标签添加成功"""
+    print(f"已添加标签: 为 ID {memo_id} 添加了 #{tag_name}")
+
+
+def show_tag_removed(memo_id: int, tag_name: str) -> None:
+    """显示
+... (truncated)
+            
+
+[3] 文件: repository.py
+            职责提示: 仓储层 数据持久化 SQLite 查询 用户 会话 标签
+            摘要: 文件: repository.py | 职责: 仓储层 数据持久化 SQLite 查询 用户 会话 标签 | 函数: save, find_all, find_by_id, find_by_tag, update, delete, add_tag, remove_tag, save, find_by_name, find_all, find_or_create, save, find_by_username, find_by_id, save, find_by_token, delete_by_token, __init__, _init_db, _get_conn, _get_tags_for_memo, _row_to_memo, save, find_all, find_by_id, find_by_tag, update, delete, add_tag, remove_tag, __init__, _get_conn, _row_to_tag, save, find_by_name, find_all, find_or_create, __init__, _get_conn, _row_to_user, save, find_by_username, find_by_id, __init__, _get_conn, save, find_by_token, delete_by_token | 类: MemoRepository, TagRepository, UserRepository, SessionRepository, SqliteMemoRepository, SqliteTagRepository, SqliteUserRepository, SqliteSessionRepository
+            函数: save, find_all, find_by_id, find_by_tag, update, delete, add_tag, remove_tag, save, find_by_name, find_all, find_or_create, save, find_by_username, find_by_id, save, find_by_token, delete_by_token, __init__, _init_db, _get_conn, _get_tags_for_memo, _row_to_memo, save, find_all, find_by_id, find_by_tag, update, delete, add_tag, remove_tag, __init__, _get_conn, _row_to_tag, save, find_by_name, find_all, find_or_create, __init__, _get_conn, _row_to_user, save, find_by_username, find_by_id, __init__, _get_conn, save, find_by_token, delete_by_token
+            类: MemoRepository, TagRepository, UserRepository, SessionRepository, SqliteMemoRepository, SqliteTagRepository, SqliteUserRepository, SqliteSessionRepository
+            相关性分数: 0.0195
+
+            代码片段:
+            """
+Repository: 将数据的保存与获取抽象化。
+隐藏“数据保存在哪里”的具体细节。这样无论是更换为 SQLite、PostgreSQL 还是文件存储，都可以直接替换。
+
+【步骤 5 学习的数据库设计要点】
+- 规范化（Normalization）：将标签分离到独立表（多对多关系）。
+- 索引（Index）：提高搜索速度的机制。
+- JOIN（连接）：结合多个表的数据进行查询。
+
+【步骤 6 学习的认证要点】
+- users 表：保存用户信息和密码哈希。
+- sessions 表：管理登录会话。
+- user_id：记录备忘录的所有者，用于授权（访问控制）。
+- 架构版本管理（Schema Versioning）：在不破坏现有数据的情况下修改表结构的方法。
+"""
+
+import sqlite3
+from abc import ABC, abstractmethod
+from datetime import datetime
+
+from entity import Memo, Tag, User
+
+# --- 抽象存储库（接口） ---
+
+
+class MemoRepository(ABC):
+    """备忘录保存和获取的接口"""
+
+    @abstractmethod
+    def save(self, memo: Memo) -> Memo:
+        """保存备忘录并返回带有ID的Memo"""
+        pass
+
+    @abstractmethod
+    def find_all(self, user_id: int | None = None) -> list[Memo]:
+        """获取备忘录（指定user_id时只获取该用户的备忘录）"""
+        pass
+
+    @abstractmethod
+    def find_by_id(self, memo_id: int) -> Memo | None:
+        """通过ID获取备忘录。不存在则返回None"""
+        pass
+
+    @abstractmethod
+    def find_by_tag(self, tag_name: str, user_id: int | None = None) -> list[Memo]:
+        """通过标签名搜索备忘录（指定user_id时只搜索该用户的备忘录）"""
+        pass
+
+    @abstractmethod
+    def update(self, memo: Memo) -> bool:
+        """更新备忘录。成功返回True"""
+        pass
+
+    @abstractmethod
+    d
+... (truncated)
+            
+
+[4] 文件: auth.py
+            职责提示: 认证 密码哈希 密码校验 登录验证
+            摘要: 文件: auth.py | 职责: 认证 密码哈希 密码校验 登录验证 | 函数: hash_password, verify_password
+            函数: hash_password, verify_password
+            类: (none)
+            相关性分数: 0.0174
+
+            代码片段:
+            """
+Auth: 用于密码哈希化和校验的工具类。
+
+【为什么要对密码进行哈希化？】
+如果数据库（DB）以明文保存密码，一旦数据库泄露，所有用户的密码都会直接暴露。
+通过哈希化处理，即使拿到数据也无法得知原始密码。
+
+【为什么需要盐值（Salt）？】
+如果不使用盐值，相同的密码（如 "password123"）始终会生成相同的哈希值。
+攻击者可以预先制作常用密码的哈希对照表（彩虹表），从而实现通过哈希值反查原始密码。
+加入盐值（随机字符串）混淆后，即使密码相同，每次生成的哈希值也会不同，从而保证安全。
+
+【为什么生产环境下应该使用 bcrypt？】
+SHA-256 是一种高速哈希函数。计算速度快意味着攻击者在进行暴力破解时，可以在短时间内尝试大量密码。
+bcrypt 在设计上故意降低了运行速度，这使得暴力破解的成本剧增。
+虽然在学习阶段使用 SHA-256 已经足够，但在实际的生产应用中，务必使用 bcrypt 或 Argon2。
+"""
+
+import hashlib
+import secrets
+
+
+def hash_password(password: str) -> str:
+    """使用带盐值的 SHA-256 算法对密码进行哈希化。
+
+    返回值格式: "盐值$哈希值"
+    示例: "a1b2c3d4...$(SHA-256哈希值)"
+    """
+    salt = secrets.token_hex(16)  # 生成 32 位的随机盐值
+    hash_value = hashlib.sha256((salt + password).encode()).hexdigest()
+    return f"{salt}${hash_value}"
+
+
+def verify_password(password: str, stored_hash: str) -> bool:
+    """验证输入的密码是否与存储的哈希值一致。
+
+    stored_hash 的格式应为 "盐值$哈希值"。
+    使用相同的盐值对输入密码再次进行哈希，若结果一致则验证通过。
+    """
+    salt, hash_value = stored_hash.split("$", 1)
+    return hashlib.sha256((salt + password).encode()).hexdigest() == hash_value
+            
+
+[5] 文件: session.py
+            职责提示: 会话 token 当前登录状态 登录会话
+            摘要: 文件: session.py | 职责: 会话 token 当前登录状态 登录会话 | 函数: save_session, load_session, clear_session
+            函数: save_session, load_session, clear_session
+            类: (none)
+            相关性分数: 0.0145
+
+            代码片段:
+            """
+Session: 管理CLI应用的认证状态。
+
+【教育要点: 会话管理机制】
+Web应用将令牌保存在Cookie中，每次请求时发送给服务器。
+CLI应用无法使用Cookie，所以将令牌保存到文件中。
+
+  Web应用           CLI应用
+  ----------          ----------
+  Cookie     ←→    ~/.memo_session（令牌文件）
+  Redis/DB   ←→    SQLite sessions 表
+
+登录流程:
+1. 用户输入ID/密码
+2. 服务器（UseCase）验证密码
+3. 验证通过则生成随机令牌
+4. 令牌同时保存到DB（sessions）和文件（~/.memo_session）
+5. 下次执行命令时，从文件读取令牌并与DB进行比对
+
+登出流程:
+1. 从文件读取令牌
+2. 从DB删除会话
+3. 删除文件
+"""
+
+from pathlib import Path
+
+# 会话文件保存位置（主目录下）
+SESSION_FILE = Path.home() / ".memo_session"
+
+
+def save_session(user_id: int, token: str) -> None:
+    """将会话信息保存到文件"""
+    SESSION_FILE.write_text(f"{user_id}:{token}", encoding="utf-8")
+
+
+def load_session() -> tuple[int, str] | None:
+    """从文件读取会话信息。未登录则返回None"""
+    if not SESSION_FILE.exists():
+        return None
+    try:
+        content = SESSION_FILE.read_text(encoding="utf-8").strip()
+        user_id_str, token = content.split(":", 1)
+        return (int(user_id_str), token)
+    except (ValueError, FileNotFoundError):
+        return None
+
+
+def clear_session() -> None:
+    """删除会话文件（登出）"""
+    if SESSION_FILE.exists():
+        SESSION_FILE.unlink()
+            
+
+        回答要求：
+        1. 先指出这个任务最可能涉及的 2~5 个文件
+        2. 说明这些文件在任务中的分工
+        3. 如果是 explain 类任务，解释调用链/分层关系
+        4. 如果是 feature 或 bugfix 类任务，给出修改方案
+        5. 若给代码，尽量保持现有命名与结构一致
+        6. 如果信息不足，要明确说明“不确定的部分”
+        7. 不要引用不存在的文件
+        

@@ -1,0 +1,59 @@
+你是一个面向小型代码仓库的代码助手。
+
+        项目文件树：
+        target_repo/
+├── app.py
+├── auth.py
+├── controller.py
+├── entity.py
+├── repository.py
+├── session.py
+├── usecase.py
+├── view.py
+
+        当前任务：
+        如果 whoami 返回异常，应该优先检查哪些文件？
+
+        检索到的相关文件摘要：
+        [1] controller.py
+            summary: 文件: controller.py | 职责: 控制层 命令处理 登录 注册 whoami 权限入口 | 函数: get_current_user_id, handle_register, handle_login, handle_add, handle_list, handle_edit, handle_delete, handle_tag, handle_untag, handle_search, handle_tags, handle_logout, handle_whoami, main
+            role_hint: 控制层 命令处理 登录 注册 whoami 权限入口
+            functions: get_current_user_id, handle_register, handle_login, handle_add, handle_list, handle_edit, handle_delete, handle_tag, handle_untag, handle_search, handle_tags, handle_logout, handle_whoami, main
+            classes: (none)
+            score: 0.0537
+            
+[2] view.py
+            summary: 文件: view.py | 职责: 显示层 输出格式 命令行展示 | 函数: show_added, _format_tags, show_memos, show_edited, show_deleted, show_not_found, show_tag_added, show_tag_removed, show_tag_not_found, show_tags, show_search_results, show_help, show_unknown_command, show_error, show_registered, show_logged_in, show_logged_out, show_current_user, show_login_required
+            role_hint: 显示层 输出格式 命令行展示
+            functions: show_added, _format_tags, show_memos, show_edited, show_deleted, show_not_found, show_tag_added, show_tag_removed, show_tag_not_found, show_tags, show_search_results, show_help, show_unknown_command, show_error, show_registered, show_logged_in, show_logged_out, show_current_user, show_login_required
+            classes: (none)
+            score: 0.0350
+            
+[3] repository.py
+            summary: 文件: repository.py | 职责: 仓储层 数据持久化 SQLite 查询 用户 会话 标签 | 函数: save, find_all, find_by_id, find_by_tag, update, delete, add_tag, remove_tag, save, find_by_name, find_all, find_or_create, save, find_by_username, find_by_id, save, find_by_token, delete_by_token, __init__, _init_db, _get_conn, _get_tags_for_memo, _row_to_memo, save, find_all, find_by_id, find_by_tag, update, delete, add_tag, remove_tag, __init__, _get_conn, _row_to_tag, save, find_by_name, find_all, find_or_create, __init__, _get_conn, _row_to_user, save, find_by_username, find_by_id, __init__, _get_conn, save, find_by_token, delete_by_token | 类: MemoRepository, TagRepository, UserRepository, SessionRepository, SqliteMemoRepository, SqliteTagRepository, SqliteUserRepository, SqliteSessionRepository
+            role_hint: 仓储层 数据持久化 SQLite 查询 用户 会话 标签
+            functions: save, find_all, find_by_id, find_by_tag, update, delete, add_tag, remove_tag, save, find_by_name, find_all, find_or_create, save, find_by_username, find_by_id, save, find_by_token, delete_by_token, __init__, _init_db, _get_conn, _get_tags_for_memo, _row_to_memo, save, find_all, find_by_id, find_by_tag, update, delete, add_tag, remove_tag, __init__, _get_conn, _row_to_tag, save, find_by_name, find_all, find_or_create, __init__, _get_conn, _row_to_user, save, find_by_username, find_by_id, __init__, _get_conn, save, find_by_token, delete_by_token
+            classes: MemoRepository, TagRepository, UserRepository, SessionRepository, SqliteMemoRepository, SqliteTagRepository, SqliteUserRepository, SqliteSessionRepository
+            score: 0.0195
+            
+[4] auth.py
+            summary: 文件: auth.py | 职责: 认证 密码哈希 密码校验 登录验证 | 函数: hash_password, verify_password
+            role_hint: 认证 密码哈希 密码校验 登录验证
+            functions: hash_password, verify_password
+            classes: (none)
+            score: 0.0174
+            
+[5] session.py
+            summary: 文件: session.py | 职责: 会话 token 当前登录状态 登录会话 | 函数: save_session, load_session, clear_session
+            role_hint: 会话 token 当前登录状态 登录会话
+            functions: save_session, load_session, clear_session
+            classes: (none)
+            score: 0.0145
+            
+
+        请回答：
+        1. 这个任务最可能涉及哪些文件
+        2. 每个文件大概承担什么职责
+        3. 应该如何修改或分析
+        4. 若需要代码，请给出尽量贴合当前仓库结构的建议
+        

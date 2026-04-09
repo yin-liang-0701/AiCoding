@@ -1,0 +1,65 @@
+如果 `whoami` 返回异常，应优先检查以下 **3个核心文件**，它们构成了完整的认证会话验证链：
+
+---
+
+### **1. controller.py（控制层入口）**
+**分工**：`whoami` 命令的**请求入口**和**会话验证协调者**
+- `handle_whoami()`：处理 whoami 命令的主函数（未在片段中完整显示，但摘要已确认存在）
+- `get_current_user_id()`：**核心验证逻辑**，串联会话文件与数据库校验
+
+**关键检查点**：
+- `get_current_user_id()` 是否正确调用 `load_session()` 和 `session_repository.find_by_token()`
+- 是否正确处理了 `None` 返回值（未登录或会话过期场景）
+- 错误处理是否完善（如 token 解析失败、数据库查询异常）
+
+---
+
+### **2. session.py（会话管理层）**
+**分工**：**会话文件读写**，CLI 认证状态的持久化
+- `load_session()`：从 `~/.memo_session` 文件读取 `user_id:token` 格式数据
+- `clear_session()`：清理会话文件（登出时调用）
+
+**关键检查点**：
+- 会话文件是否存在（`SESSION_FILE.exists()`）
+- 文件格式是否正确（能否按 `:` 分割并转为 `int`）
+- 文件权限问题（是否可读）
+- token 是否被意外篡改或损坏
+
+---
+
+### **3. repository.py（数据访问层）**
+**分工**：**会话 Token 的数据库校验**
+- `SqliteSessionRepository.find_by_token(token)`：在 `sessions` 表中查询 token 有效性
+- `SqliteUserRepository`：若 whoami 需显示用户名，则需查询用户表
+
+**关键检查点**：
+- `sessions` 表是否创建且包含 `token` 字段
+- token 是否已过期或被删除（`delete_by_token` 是否被误调用）
+- 数据库连接是否正常（`_get_conn()` 是否返回有效连接）
+- 是否存在 SQL 查询错误（如表结构不匹配）
+
+---
+
+### **调用链与分层关系**
+```
+用户执行 whoami
+    ↓
+controller.py::handle_whoami()
+    ↓ 调用
+controller.py::get_current_user_id()  ←── 控制层：协调验证流程
+    ↓ 调用
+session.py::load_session()           ←── 会话层：读取本地文件
+    ↓ 返回 (user_id, token)
+    ↓ 调用
+repository.py::SqliteSessionRepository.find_by_token(token)  ←── 数据层：校验 token
+    ↓ 返回查询结果
+    ↓
+controller.py 根据结果调用 view.py::show_current_user() 或 show_login_required()
+```
+
+**异常排查优先级**：
+1. **先检查 `~/.memo_session` 文件**：是否存在、格式是否正确
+2. **再检查 `session.py::load_session()`**：是否能正确解析文件
+3. **最后检查 `repository.py`**：数据库中的 token 是否与会话文件一致
+
+这种分层设计确保了 CLI 应用的认证状态在**文件**（本地持久化）和**数据库**（服务端校验）之间同步，任何一层的不一致都会导致 whoami 异常。

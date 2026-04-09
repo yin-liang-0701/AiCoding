@@ -1,0 +1,34 @@
+根据代码仓库的职责划分，业务逻辑和权限控制主要由以下文件负责：
+
+### 核心文件
+
+1. **usecase.py** - **业务逻辑与授权的核心**
+2. **controller.py** - **认证入口与会话验证**
+3. **auth.py** - **密码安全处理**
+4. **repository.py** - **数据访问支持**
+
+### 职责分工
+
+**业务逻辑（usecase.py）**
+- 定义所有应用用例：用户注册、登录、备忘录增删改查、标签管理等
+- 在`execute`方法中实现核心业务规则（如用户名/密码校验）
+- **授权控制**：通过`user_id`参数确保用户只能操作自己的数据（如`AddMemoUseCase`等用例在执行时验证用户身份）
+
+**权限控制（分层协作）**
+- **认证层**：`controller.py`的`get_current_user_id()`验证会话有效性
+- **授权层**：`usecase.py`在用例执行时强制传入`user_id`，实现数据归属控制
+- **安全层**：`auth.py`处理密码哈希与验证（被`RegisterUserUseCase`和`LoginUserUseCase`调用）
+
+### 调用链关系
+
+```
+用户请求 → controller.py（路由+会话验证）→ usecase.py（执行业务逻辑+授权检查）→ repository.py（数据持久化）
+```
+
+**关键流程示例（添加备忘录）**：
+1. `controller.py`的`handle_add()`调用`get_current_user_id()`验证登录状态
+2. 若未登录则返回错误，否则将`user_id`和内容传给`AddMemoUseCase`
+3. `usecase.py`的`AddMemoUseCase.execute()`执行业务逻辑，创建带`user_id`的Memo实体
+4. `repository.py`的`MemoRepository.save()`仅负责存储，不关心业务规则
+
+**不确定的部分**：`auth.py`和`session.py`的完整实现未提供，但根据导入关系可推断其承担密码安全和会话管理职责。

@@ -1,0 +1,86 @@
+当 `whoami` 命令返回异常时，应优先检查以下文件：
+
+### 1. **可执行文件本身**
+- **文件路径**: `/usr/bin/whoami` 或 `/bin/whoami`
+- **检查命令**: `ls -l /usr/bin/whoami && file /usr/bin/whoami`
+- **理由**: `whoami` 可能因文件损坏、权限错误或丢失而无法执行。这是最直接的故障点。
+- **修复建议**:
+  ```bash
+  # 检查权限（应为755）
+  chmod 755 /usr/bin/whoami
+  
+  # 若文件丢失，从coreutils包重装
+  sudo apt-get --reinstall install coreutils  # Debian/Ubuntu
+  sudo yum reinstall coreutils                 # RHEL/CentOS
+  ```
+
+---
+
+### 2. **用户身份数据库**
+- **文件路径**: `/etc/passwd`
+- **检查命令**: `grep $(id -u) /etc/passwd`
+- **理由**: `whoami` 通过 `getpwuid()` 系统调用根据 UID 查找用户名。若当前 UID 在 `/etc/passwd` 中无对应记录，将返回异常（如 `no such user`）。
+- **修复建议**: 确保当前用户的 UID 在 `/etc/passwd` 中有有效条目：
+  ```bash
+  # 示例：添加用户条目
+  echo "username:x:1001:1001::/home/username:/bin/bash" >> /etc/passwd
+  ```
+
+---
+
+### 3. **Name Service Switch 配置**
+- **文件路径**: `/etc/nsswitch.conf`
+- **检查命令**: `grep "passwd:" /etc/nsswitch.conf`
+- **理由**: 该文件定义了用户信息的来源顺序（如 `files`, `ldap`, `systemd`）。若配置错误（如 `passwd: ldap` 但 LDAP 服务不可用），`getpwuid()` 会失败。
+- **修复建议**: 确保 `passwd` 行包含 `files` 作为后备：
+  ```bash
+  # 典型正确配置
+  passwd: files systemd
+  # 或
+  passwd: compat
+  ```
+
+---
+
+### 4. **动态链接库**
+- **文件路径**: `/lib/x86_64-linux-gnu/libc.so.6`（路径因架构而异）
+- **检查命令**: `ldd /usr/bin/whoami`
+- **理由**: `whoami` 依赖 C 标准库。若库文件损坏或版本不兼容，会导致执行失败。
+- **修复建议**: 重装 `libc6` 包：
+  ```bash
+  sudo apt-get --reinstall install libc6  # Debian/Ubuntu
+  ```
+
+---
+
+### 5. **环境变量配置**
+- **文件路径**: `/etc/environment`, `~/.bashrc`, `~/.profile`
+- **检查命令**: `env | grep -E "PATH|USER|LOGNAME"`
+- **理由**: 虽然 `whoami` 不直接依赖环境变量，但若 `PATH` 被篡改导致执行了错误的 `whoami` 脚本，或安全策略（如 SELinux）因环境变量而拒绝访问，也会引发异常。
+- **修复建议**: 清理异常的 `PATH` 设置：
+  ```bash
+  # 在 ~/.bashrc 中修复
+  export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+  ```
+
+---
+
+### 6. **安全模块状态**
+- **文件路径**: `/etc/selinux/config`, `/etc/apparmor.d/`
+- **检查命令**: `sestatus` 或 `aa-status`
+- **理由**: SELinux/AppArmor 可能阻止 `whoami` 访问 `/etc/passwd` 或执行系统调用。
+- **修复建议**: 临时禁用测试：
+  ```bash
+  sudo setenforce 0  # SELinux
+  sudo systemctl stop apparmor  # AppArmor
+  ```
+
+---
+
+### **排查优先级总结**
+1. **立即检查**: `whoami` 可执行文件权限和完整性
+2. **快速验证**: 当前 UID 是否在 `/etc/passwd` 中存在
+3. **深度排查**: `/etc/nsswitch.conf` 配置和动态库依赖
+4. **环境审查**: 安全策略和自定义环境变量
+
+**注意**: 若 `whoami` 是自定义脚本而非 coreutils 提供的二进制文件，应直接检查该脚本内容及其引用的所有文件路径。

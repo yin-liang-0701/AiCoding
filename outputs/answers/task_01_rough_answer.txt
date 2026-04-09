@@ -1,0 +1,78 @@
+根据文件摘要分析，登录流程涉及以下核心文件：
+
+## 1. 核心文件清单
+
+**controller.py** → **auth.py** → **session.py** → **view.py**
+
+## 2. 各文件职责分析
+
+| 文件 | 职责 | 关键函数 | 在登录流程中的作用 |
+|------|------|----------|-------------------|
+| **controller.py** | 控制层入口 | `handle_login()`, `handle_logout()`, `get_current_user_id()` | 接收登录命令，协调认证与会话管理 |
+| **auth.py** | 认证逻辑 | `verify_password()` | 验证用户名/密码是否匹配 |
+| **session.py** | 会话管理 | `save_session()`, `load_session()`, `clear_session()` | 持久化登录状态，跟踪当前用户 |
+| **view.py** | 显示层 | `show_logged_in()`, `show_logged_out()`, `show_login_required()` | 向用户输出登录/登出结果 |
+
+## 3. 登录流程分析
+
+典型登录流程应该是：
+```python
+# 伪代码示例
+def handle_login(username, password):
+    # 1. 调用 auth.py 验证凭证
+    if auth.verify_password(username, password):
+        # 2. 验证通过，调用 session.py 保存会话
+        session.save_session(user_id)
+        # 3. 调用 view.py 显示成功
+        view.show_logged_in(username)
+    else:
+        view.show_error("登录失败")
+```
+
+## 4. 代码实现建议
+
+### controller.py 登录处理示例
+```python
+def handle_login(self, username: str, password: str):
+    """处理登录命令"""
+    # 验证凭证
+    if self.auth.verify_password(username, password):
+        # 获取用户ID（假设从entity获取）
+        user_id = self.repository.get_user_id(username)
+        # 保存会话
+        self.session.save_session(user_id)
+        # 显示成功
+        self.view.show_logged_in(username)
+    else:
+        self.view.show_error("用户名或密码错误")
+```
+
+### auth.py 密码验证示例
+```python
+def verify_password(self, username: str, password: str) -> bool:
+    """验证密码"""
+    # 从repository获取存储的哈希密码
+    stored_hash = self.repository.get_password_hash(username)
+    # 使用库如bcrypt验证
+    return self.password_hasher.verify(password, stored_hash)
+```
+
+### session.py 会话管理示例
+```python
+def save_session(self, user_id: int):
+    """保存登录会话"""
+    # 生成token或简单存储user_id
+    token = generate_token()
+    self.session_store[token] = user_id
+    # 写入文件或数据库
+    self._persist_session(token, user_id)
+```
+
+### 建议检查点
+1. **依赖注入**：确保controller能访问auth、session、view实例
+2. **密码安全**：auth.py应使用bcrypt/scrypt等安全哈希算法
+3. **会话存储**：session.py建议实现持久化（文件/数据库）而非内存存储
+4. **错误处理**：添加try/except块处理仓库访问异常
+5. **输入验证**：在controller层验证username/password格式
+
+登录流程是典型的**控制层→认证层→会话层→显示层**的分层协作，符合当前仓库的架构设计。

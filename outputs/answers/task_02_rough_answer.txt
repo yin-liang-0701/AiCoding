@@ -1,0 +1,113 @@
+根据文件摘要，业务逻辑和权限控制主要由以下文件负责：
+
+## 1. 核心职责文件
+
+**usecase.py** 是业务逻辑和权限控制的**核心层**：
+- 包含所有用例类（RegisterUserUseCase, AddMemoUseCase, EditMemoUseCase等）
+- 每个用例的 `execute()` 方法封装了具体的业务规则和权限校验
+- 例如：EditMemoUseCase 和 DeleteMemoUseCase 中应包含"用户只能修改/删除自己的备忘录"的权限逻辑
+
+**controller.py** 是**控制层**，负责：
+- 接收命令行输入
+- 调用相应的用例
+- 作为权限控制的**入口点**（如检查用户是否登录）
+- `get_current_user_id()` 函数提供当前用户身份
+
+**auth.py**（未在摘要中但根据命名推断）：
+- 处理用户认证（注册、登录、登出）
+- 密码加密验证
+- 可能包含 token/session 生成
+
+**session.py**：
+- 管理用户会话状态
+- 提供当前登录用户信息
+
+## 2. 职责划分建议
+
+```
+┌─────────────┐     ┌───────────────┐     ┌──────────────┐
+│ controller  │────▶│   usecase     │────▶│  repository  │
+│ (输入/协调)  │     │ (业务逻辑/权限)│     │  (数据持久化) │
+└─────────────┘     └───────────────┘     └──────────────┘
+       │                    ▲
+       ▼                    │
+┌─────────────┐            │
+│   view      │            │
+│ (输出格式化) │            │
+└─────────────┘            │
+                           │
+┌─────────────┐            │
+│   auth      │────────────┘
+│ (认证服务)   │
+└─────────────┘
+```
+
+## 3. 代码修改建议
+
+### 权限控制最佳实践
+
+**在 usecase.py 中**，确保每个用例都接收并验证用户身份：
+
+```python
+# 示例：EditMemoUseCase 的权限控制
+class EditMemoUseCase:
+    def __init__(self, memo_repo, user_id, memo_id, new_content):
+        self.memo_repo = memo_repo
+        self.user_id = user_id  # 必须传入当前用户ID
+        self.memo_id = memo_id
+        self.new_content = new_content
+    
+    def execute(self):
+        # 权限校验：用户只能编辑自己的备忘录
+        memo = self.memo_repo.find_by_id(self.memo_id)
+        if not memo:
+            raise NotFoundError("备忘录不存在")
+        if memo.user_id != self.user_id:
+            raise PermissionError("无权修改此备忘录")
+        
+        # 执行业务逻辑
+        memo.content = self.new_content
+        self.memo_repo.update(memo)
+        return memo
+```
+
+**在 controller.py 中**，保持薄层设计：
+
+```python
+def handle_edit(memo_id, new_content):
+    try:
+        user_id = get_current_user_id()  # 从session获取
+        usecase = EditMemoUseCase(memo_repo, user_id, memo_id, new_content)
+        memo = usecase.execute()
+        view.show_edited(memo)
+    except PermissionError as e:
+        view.show_error("权限不足")
+    except NotFoundError as e:
+        view.show_not_found()
+```
+
+**在 auth.py 中**，集中处理认证：
+
+```python
+class AuthService:
+    def __init__(self, user_repo, session_repo):
+        self.user_repo = user_repo
+        self.session_repo = session_repo
+    
+    def login(self, username, password):
+        user = self.user_repo.find_by_username(username)
+        if user and verify_password(password, user.hashed_password):
+            token = generate_token()
+            self.session_repo.save(token, user.id)
+            return token
+        raise AuthenticationError("用户名或密码错误")
+```
+
+## 4. 分析建议
+
+1. **检查 usecase.py**：确认每个用例是否都接收 `user_id` 参数，并在执行前验证资源所有权
+2. **检查 controller.py**：确保没有业务逻辑代码，只有输入解析和用例调用
+3. **检查 auth.py**：确认认证逻辑与业务逻辑分离
+4. **测试权限边界**：重点测试用户A能否操作用户B的数据
+
+这种分层架构符合 Clean Architecture 原则，业务逻辑（usecase）独立于框架和UI，便于测试和维护。

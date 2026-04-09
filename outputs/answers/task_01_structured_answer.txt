@@ -1,0 +1,60 @@
+登录流程涉及以下核心文件和函数：
+
+## 1. 核心文件及分工
+
+### **controller.py**（控制层）
+- **职责**：登录命令的入口和协调者
+- **关键函数**：`handle_login()`、`get_current_user_id()`
+- **作用**：接收用户输入，调用验证逻辑，协调会话管理，返回视图结果
+
+### **auth.py**（认证工具层）
+- **职责**：密码安全处理
+- **关键函数**：`verify_password()`、`hash_password()`
+- **作用**：验证用户密码是否与数据库存储的哈希值匹配
+
+### **session.py**（会话管理层）
+- **职责**：CLI环境下的会话状态管理
+- **关键函数**：`save_session()`、`load_session()`、`clear_session()`
+- **作用**：将登录令牌持久化到本地文件（`~/.memo_session`），实现CLI应用的"登录状态"保持
+
+### **view.py**（表现层）
+- **职责**：登录结果的显示
+- **关键函数**：`show_logged_in()`、`show_login_required()`
+- **作用**：向用户展示登录成功/失败信息
+
+## 2. 登录流程调用链
+
+```
+用户输入登录命令
+    ↓
+controller.handle_login()
+    ↓
+┌─────────────────┐
+│  验证密码阶段    │
+│  auth.verify_password() ← 比对数据库密码哈希
+└─────────────────┘
+    ↓
+┌─────────────────┐
+│  创建会话阶段    │
+│  session_repository.create_session() ← 数据库创建会话记录
+│  session.save_session() ← 本地文件保存令牌
+└─────────────────┘
+    ↓
+view.show_logged_in() ← 显示"登录成功"
+```
+
+## 3. 分层关系说明
+
+- **控制层**（controller）：作为流程中枢，不直接处理密码或会话细节
+- **业务层**（usecase）：从controller的导入可推断存在`LoginUserUseCase`，封装登录业务规则
+- **数据层**（repository）：`SqliteSessionRepository`负责数据库会话操作
+- **基础设施层**：`session.py`和`auth.py`提供底层安全机制，与框架无关
+
+## 4. 关键设计特点
+
+1. **CLI适配**：Web用Cookie，CLI用本地文件存储令牌
+2. **双重验证**：文件令牌 + 数据库校验（`get_current_user_id()`中体现）
+3. **安全存储**：密码加盐哈希，会话令牌随机生成
+4. **分层清晰**：各层职责单一，controller仅作协调
+
+> **注**：完整登录流程还涉及`usecase.py`和`repository.py`，但当前上下文中未提供详细代码。
