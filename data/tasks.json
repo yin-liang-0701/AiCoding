@@ -1,0 +1,98 @@
+[
+  {
+    "id": "task_01",
+    "type": "explain",
+    "task": "登录流程涉及哪些文件和函数？",
+    "gold_files": ["controller.py", "usecase.py", "auth.py", "session.py"],
+    "gold_keywords": [
+      "handle_login",
+      "LoginUserUseCase",
+      "hash_password",
+      "verify_password",
+      "save_session",
+      "load_session",
+      "controller",
+      "usecase",
+      "auth",
+      "session"
+    ]
+  },
+  {
+    "id": "task_02",
+    "type": "explain",
+    "task": "谁负责业务逻辑和权限控制？",
+    "gold_files": ["usecase.py", "controller.py"],
+    "gold_keywords": [
+      "usecase",
+      "controller",
+      "execute",
+      "handle_login",
+      "handle_add",
+      "权限",
+      "业务逻辑"
+    ]
+  },
+  {
+    "id": "task_03",
+    "type": "explain",
+    "task": "搜索 tag 的功能经过哪些层？",
+    "gold_files": ["controller.py", "usecase.py", "repository.py", "view.py", "entity.py"],
+    "gold_keywords": [
+      "handle_search",
+      "SearchByTagUseCase",
+      "find_by_tag",
+      "show_search_results",
+      "Tag",
+      "Memo",
+      "controller",
+      "usecase",
+      "repository",
+      "view",
+      "entity"
+    ]
+  },
+  {
+    "id": "task_04",
+    "type": "feature",
+    "task": "如果要增加导出 memo 为 JSON 的功能，应该修改哪些文件？",
+    "gold_files": ["controller.py", "usecase.py", "repository.py", "view.py"],
+    "gold_keywords": [
+      "controller",
+      "usecase",
+      "repository",
+      "view",
+      "json"
+    ]
+  },
+  {
+    "id": "task_05",
+    "type": "feature",
+    "task": "如果要给 list 命令增加按 tag 过滤，应该修改哪些文件？",
+    "gold_files": ["controller.py", "usecase.py", "repository.py", "view.py"],
+    "gold_keywords": [
+      "handle_list",
+      "ListMemosUseCase",
+      "find_by_tag",
+      "controller",
+      "usecase",
+      "repository",
+      "view"
+    ]
+  },
+  {
+    "id": "task_06",
+    "type": "bugfix",
+    "task": "如果 whoami 返回异常，应该优先检查哪些文件？",
+    "gold_files": ["controller.py", "session.py", "view.py", "repository.py"],
+    "gold_keywords": [
+      "handle_whoami",
+      "load_session",
+      "find_by_token",
+      "show_current_user",
+      "controller",
+      "session",
+      "repository",
+      "view"
+    ]
+  }
+]

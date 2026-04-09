@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find \"d:\\\\YL\\\\QDU\\\\Project\\\\Mini Context-Aware AI Coding Assistant\\\\scripts\\\\run_experiments.py\" -exec grep -n \"max = 8\" {} \\\\;)"
+    ]
+  }
+}
